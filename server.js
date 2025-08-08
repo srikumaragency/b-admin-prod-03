@@ -26,7 +26,7 @@ const app = express();
 // 🛡️ BULLETPROOF CORS - PERMANENT SOLUTION
 const allowedOrigins = [
   'https://admin.sivakaasi.com',
-  'https://b-admin-prod3.onrender.com',
+  'https://b-admin-prod-03.onrender.com',
   'https://admin.sivakaasi.com',
   'https://www.admin.sivakaasi.com',
   'http://localhost:3000',
