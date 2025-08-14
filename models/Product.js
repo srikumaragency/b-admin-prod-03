@@ -48,7 +48,7 @@ const productSchema = new mongoose.Schema({
   },
   profitMarginPercentage: {
     type: Number,
-    default: 65, // Default 65% profit margin
+    default: 70, // Default 70% profit margin
     min: 0,
     validate: {
       validator: function(v) {
@@ -70,7 +70,7 @@ const productSchema = new mongoose.Schema({
   },
   discountPercentage: {
     type: Number,
-    default: 81, // Default 81% discount
+    default: 80, // Default 80% discount
     min: 0,
     max: 99.99,
     validate: {
@@ -286,7 +286,7 @@ productSchema.pre('save', function(next) {
 });
 
 // Static method to calculate pricing and inventory
-productSchema.statics.calculatePricing = function(basePrice, profitMarginPercentage = 65, discountPercentage = 81) {
+productSchema.statics.calculatePricing = function(basePrice, profitMarginPercentage = 70, discountPercentage = 80) {
   const profitMarginPrice = basePrice + (basePrice * (profitMarginPercentage / 100));
   const calculatedOriginalPrice = profitMarginPrice / (1 - (discountPercentage / 100));
   const offerPrice = profitMarginPrice;
