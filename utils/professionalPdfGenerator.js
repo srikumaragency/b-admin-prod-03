@@ -182,12 +182,12 @@ const generateProfessionalInvoicePDF = (invoiceData) => {
       // Helper function to draw page header with clean borders
       const drawPageHeader = (isFirstPage = true) => {
         if (isFirstPage) {
-          // MAIN BORDER - Optimized height to fit everything on one page
+          // MAIN BORDER - Optimized height to fit everything on one page (match reference layout)
           const mainBorderY = 15;
-          const mainBorderHeight = totalPages === 1 ? 720 : 810; // Reduced height for single page
+          const mainBorderHeight = totalPages === 1 ? 750 : 810; // Balanced height for single page with footer
           doc.rect(leftMargin, mainBorderY, pageWidth, mainBorderHeight).stroke('#000000');
           
-          // HEADER SECTION (no separate border - part of main border)
+          // HEADER SECTION (inside main border)
           y = 25;
           doc.fillColor('#000000')
              .fontSize(18)
@@ -201,115 +201,137 @@ const generateProfessionalInvoicePDF = (invoiceData) => {
 
           y += 20;
 
-          // CONTACT ROW - Internal horizontal line only
+          // CONTACT ROW
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke('#000000');
           y += 8;
           
           doc.fillColor('#000000')
              .fontSize(11)
              .font('Helvetica-Bold')
-             .text('WhatsApp: +91 9443569475', leftMargin + 15, y); // Start space for WhatsApp
+             .text('WhatsApp: +91 9443569475', leftMargin + 15, y);
           
-          // Email aligned to the right edge with end space
+          // Email aligned to the right edge
           doc.text('Email: suncrackers4500@gmail.com', leftMargin + 15, y, { 
             align: 'right', 
-            width: pageWidth - 30 // End space for Email
+            width: pageWidth - 30
           });
 
           y += 20;
           
-          // Another horizontal line
+          // Separator line and capture top border position for vertical divider
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke('#000000');
-          const topBorderY = y; // Store top border position for vertical divider
-          y += 8; // Reduced spacing to remove extra row
+          const topBorderY = y;
+          y += 5; // Reduced spacing - match reference
 
-          // CUSTOMER DETAILS AND INVOICE INFO SECTION
-          const customerSectionWidth = pageWidth * 0.6;
+          // CUSTOMER (left) and INVOICE INFO (right)
           let customerName = customerDetails.name || 'Customer Name';
-          
-          // Format address properly from address object
-          let customerAddress = 'Customer Address';
+
+          // Calculate split using discount column as reference like the table
+          const discountColumnX = leftMargin + 35 + 50 + 120 + 50 + 50 + 60; // sno + code + productName + quantity + rate + actual
+          const customerSectionWidth = discountColumnX - leftMargin - 20; // leave some space from split line
+          const labelWidth = 50;
+          const customerValueX = leftMargin + 10 + labelWidth;
+
+          // Build two-line address with proper wrapping (street on line 1, admin on line 2)
+          let addressLine1 = '';
+          let addressLine2 = '';
           if (customerDetails.address) {
             const addr = customerDetails.address;
-            const addressParts = [];
-            if (addr.street) addressParts.push(addr.street);
-            if (addr.landmark) addressParts.push(addr.landmark);
-            if (addr.nearestTown) addressParts.push(addr.nearestTown);
-            if (addr.district) addressParts.push(addr.district);
-            if (addr.state) addressParts.push(addr.state);
-            if (addr.pincode) addressParts.push(addr.pincode);
-            if (addr.country && addr.country !== 'India') addressParts.push(addr.country);
-            
-            if (addressParts.length > 0) {
-              customerAddress = addressParts.join(', ');
-            } else if (addr.district && addr.state) {
-              customerAddress = `${addr.district}, ${addr.state}`;
+            const streetParts = [];
+            if (addr.street) streetParts.push(addr.street);
+            if (addr.landmark) streetParts.push(addr.landmark);
+            if (addr.nearestTown) streetParts.push(addr.nearestTown);
+            const adminParts = [];
+            if (addr.district) adminParts.push(addr.district);
+            if (addr.state) adminParts.push(addr.state);
+            if (addr.pincode) adminParts.push(addr.pincode);
+            if (addr.country && addr.country !== 'India') adminParts.push(addr.country);
+            if (streetParts.length > 0) addressLine1 = streetParts.join(', ');
+            if (adminParts.length > 0) addressLine2 = adminParts.join(', ');
+            if (!addressLine1 && !addressLine2) {
+              if (addr.district && addr.state) {
+                addressLine1 = `${addr.district}, ${addr.state}`;
+              } else {
+                addressLine1 = 'Customer Address';
+              }
             }
+          } else {
+            addressLine1 = 'Customer Address';
           }
-          
-          // Handle multiple contact numbers - use mobile and deliveryContact from database
+
+          // Contact number(s)
           let customerContact = 'Contact Number';
           const mobile = customerDetails.mobile;
           const deliveryContact = customerDetails.deliveryContact;
-          
           if (mobile && deliveryContact && mobile !== deliveryContact) {
-            // Both numbers available and different
             customerContact = `${mobile}, ${deliveryContact}`;
           } else if (mobile) {
-            // Only mobile available
             customerContact = mobile;
           } else if (deliveryContact) {
-            // Only deliveryContact available
             customerContact = deliveryContact;
           }
-          
-          // Customer details section - compact alignment
-          const labelWidth = 50; // Reduced width for labels
-          const customerValueX = leftMargin + 10 + labelWidth;
-          const customerSectionStartY = y; // Store start position for vertical divider
-          
-          doc.fontSize(11)
-             .font('Helvetica')
-             .fillColor('#000000')
-             .text('Name :', leftMargin + 10, y + 5); // Removed extra spacing
-          doc.font('Helvetica-Bold')
-             .text(customerName, customerValueX, y + 5);
-          
-          doc.font('Helvetica')
-             .text('Address :', leftMargin + 10, y + 20); // Adjusted spacing
-          doc.font('Helvetica-Bold')
-             .text(customerAddress, customerValueX, y + 20);
-          
-          doc.font('Helvetica')
-             .text('Contact :', leftMargin + 10, y + 35); // Adjusted spacing
-          doc.font('Helvetica-Bold')
-             .text(customerContact, customerValueX, y + 35);
 
-          // Vertical divider between customer and invoice info - TOUCHES BORDERS
-          const dividerX = leftMargin + customerSectionWidth;
+          // Render customer block
+          let currentY = y;
+          doc.fontSize(11).font('Helvetica').fillColor('#000000').text('Name:', leftMargin + 10, currentY);
+          doc.font('Helvetica-Bold').text(customerName, customerValueX, currentY, { width: customerSectionWidth - labelWidth - 10 });
+          currentY += 15;
 
-          // Invoice section - aligned with discount column for uniform model
-          const discountColumnX = leftMargin + 35 + 50 + 120 + 50 + 50 + 60; // sno + code + productName + quantity + rate + actual
-          const invoiceStartX = discountColumnX + 8; // Start from discount column line
-          const invoiceLabelWidth = 60; // Reduced width for invoice labels
+          doc.font('Helvetica').fontSize(11).text('Address:', leftMargin + 10, currentY);
+          const addressWidth = customerSectionWidth - labelWidth - 10;
+          doc.font('Helvetica').fontSize(10);
+          const line1Width = doc.widthOfString(addressLine1);
+          if (line1Width > addressWidth && addressLine1.length > 0) {
+            const words = addressLine1.split(' ');
+            let fittingText = '';
+            let remainingText = '';
+            for (let i = 0; i < words.length; i++) {
+              const testText = fittingText + (fittingText ? ' ' : '') + words[i];
+              if (doc.widthOfString(testText) <= addressWidth) {
+                fittingText = testText;
+              } else {
+                remainingText = words.slice(i).join(' ');
+                break;
+              }
+            }
+            doc.text(fittingText, customerValueX, currentY, { width: addressWidth });
+            currentY += 12;
+            if (remainingText && addressLine2) {
+              doc.text(remainingText + ', ' + addressLine2, customerValueX, currentY, { width: addressWidth });
+            } else if (remainingText) {
+              doc.text(remainingText, customerValueX, currentY, { width: addressWidth });
+            } else if (addressLine2) {
+              doc.text(addressLine2, customerValueX, currentY, { width: addressWidth });
+            }
+          } else {
+            doc.text(addressLine1, customerValueX, currentY, { width: addressWidth });
+            if (addressLine2) {
+              currentY += 12;
+              doc.text(addressLine2, customerValueX, currentY, { width: addressWidth });
+            }
+          }
+          currentY += 15;
+
+          doc.font('Helvetica').fontSize(11).text('Contact:', leftMargin + 10, currentY);
+          doc.font('Helvetica').fontSize(10).text(customerContact, customerValueX, currentY, { width: addressWidth });
+
+          // Invoice info on the right of the vertical split
+          const invoiceStartX = discountColumnX + 8;
+          const invoiceLabelWidth = 60;
           const invoiceValueX = invoiceStartX + invoiceLabelWidth;
-          
-          doc.font('Helvetica')
-             .text('Invoice No :', invoiceStartX, y + 5); // Aligned with Name
-          doc.font('Helvetica-Bold')
-             .text(invoiceNumber, invoiceValueX, y + 5);
-          
-          doc.font('Helvetica')
-             .text('Date :', invoiceStartX, y + 20); // Aligned with Address
-          doc.font('Helvetica-Bold')
-             .text(formatDate(generatedAt), invoiceValueX, y + 20);
+          let invoiceY = y;
+          doc.font('Helvetica').text('Invoice No :', invoiceStartX, invoiceY);
+          doc.font('Helvetica-Bold').text(invoiceNumber, invoiceValueX, invoiceY);
+          invoiceY += 15;
+          doc.font('Helvetica').text('Date :', invoiceStartX, invoiceY);
+          doc.font('Helvetica-Bold').text(formatDate(generatedAt), invoiceValueX, invoiceY);
 
-          y += 50; // Reduced height
-          
-          // Draw vertical divider from top border to bottom border - TOUCHES BORDERS
-          doc.moveTo(dividerX, topBorderY).lineTo(dividerX, y).stroke('#000000');
-          
-          // Horizontal line after customer section - touches product table
+          // Set y to the lower of both columns plus padding
+          const maxY = Math.max(currentY + 20, invoiceY + 20);
+          y = maxY;
+
+          // Vertical divider aligned with discount column and horizontal separator below the section
+          doc.moveTo(discountColumnX, topBorderY).lineTo(discountColumnX, y).stroke('#000000');
           doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke('#000000');
           
         } else {
@@ -614,17 +636,16 @@ const generateProfessionalInvoicePDF = (invoiceData) => {
       const amountInWords = numberToWords(Math.floor(dbFinalAmount));
       const discountColumnX = leftMargin + 35 + 50 + 120 + 50 + 50 + 60; // sno + code + productName + quantity + rate + actual
       const footerSplitX = discountColumnX; // Split at discount column line for uniform alignment
-      const footerHeight = 60; // Reduced height since amount in words is single line
-      const footerRowHeight = 20; // Height for each footer row
+      const footerHeight = 50; // Compact height for footer (layout only)
+      const footerRowHeight = 15; // Reduced height for each footer row
       
-      // Vertical divider aligned with discount column (extends through all summary rows)
-      const finalAmountRowY = y + (4 * footerRowHeight) + 10; // Calculate Final Amount row position (4 rows + line + spacing)
-      
-      // Draw vertical divider through all summary rows for better visual connection
-      doc.moveTo(footerSplitX, y).lineTo(footerSplitX, finalAmountRowY + 15).stroke('#000000');
+      // Vertical divider aligned with discount column - extend to bottom border (layout)
+      const mainBorderY = 15;
+      const mainBorderHeight = totalPages === 1 ? 750 : 810;
+      const bottomBorderY = mainBorderY + mainBorderHeight;
+      doc.moveTo(footerSplitX, y).lineTo(footerSplitX, bottomBorderY).stroke('#000000');
       
       // Left side (60%) - 2 rows layout
-      
       // Row 1: Amount in Words title
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
          .text('Amount in Words:', leftMargin + 8, y + 5);
@@ -634,7 +655,7 @@ const generateProfessionalInvoicePDF = (invoiceData) => {
         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
       ).join(' ')} Only`;
       doc.fontSize(9).font('Helvetica')
-         .text(amountWords, leftMargin + 8, y + 25, { 
+         .text(amountWords, leftMargin + 8, y + 20, { 
            width: footerSplitX - leftMargin - 16, 
            align: 'left' 
          });
@@ -648,38 +669,32 @@ const generateProfessionalInvoicePDF = (invoiceData) => {
       // Row 1: Actual Amount Total
       doc.fontSize(9).font('Helvetica');
       doc.text('Actual Total :', summaryStartX, summaryY, { width: labelWidth, align: 'left' });
-      doc.text(`Rs. ${formatCurrency(dbActualTotal)}`, valueStartX, summaryY);
+      doc.text(`Rs. ${formatCurrency(dbActualTotal)}`, valueStartX, summaryY, { width: 80, align: 'right' });
       summaryY += footerRowHeight;
       
       // Row 2: Discount Amount Total
       doc.text('Discount Total:', summaryStartX, summaryY, { width: labelWidth, align: 'left' });
-      doc.text(`Rs. ${formatCurrency(dbDiscountTotal)}`, valueStartX, summaryY);
+      doc.text(`Rs. ${formatCurrency(dbDiscountTotal)}`, valueStartX, summaryY, { width: 80, align: 'right' });
       summaryY += footerRowHeight;
       
       // Row 3: Sub Total (Actual - Discount)
       doc.text('Sub Total :', summaryStartX, summaryY, { width: labelWidth, align: 'left' });
-      doc.text(`Rs. ${formatCurrency(dbSubTotal)}`, valueStartX, summaryY);
+      doc.text(`Rs. ${formatCurrency(dbSubTotal)}`, valueStartX, summaryY, { width: 80, align: 'right' });
       summaryY += footerRowHeight;
       
       // Row 4: Packaging
       doc.text('Packaging :', summaryStartX, summaryY, { width: labelWidth, align: 'left' });
-      doc.text(`Rs. ${formatCurrency(dbPackagingPrice)}`, valueStartX, summaryY);
+      doc.text(`Rs. ${formatCurrency(dbPackagingPrice)}`, valueStartX, summaryY, { width: 80, align: 'right' });
       summaryY += footerRowHeight;
       
-      // Add a subtle line above Final Amount for better visual connection
-      summaryY += 2;
-      doc.moveTo(summaryStartX, summaryY).lineTo(valueStartX + 80, summaryY).stroke('#CCCCCC');
-      summaryY += 3;
-      
-      // Row 5: Final Amount (Bold, right-aligned with other amounts for consistency)
+      // Row 5: Final Amount (layout only, keep text as-is)
       doc.fontSize(10).font('Helvetica-Bold');
       doc.text('Final Amount :', summaryStartX, summaryY, { width: labelWidth, align: 'left' });
-      doc.text(`Rs. ${formatCurrency(dbFinalAmount)}`, valueStartX, summaryY);
+      doc.text(`Rs. ${formatCurrency(dbFinalAmount)}`, valueStartX, summaryY, { width: 80, align: 'right' });
       
-      // Add space after Final Amount, then border
-      summaryY += footerRowHeight + 8; // Extra space after Final Amount
+      // Minimal spacing after Final Amount; no extra horizontal line (match reference layout)
+      summaryY += footerRowHeight + 5; 
       y = summaryY; // Update y position to match
-      doc.moveTo(leftMargin, y).lineTo(rightMargin, y).stroke('#000000');
 
       // THANK YOU MESSAGE - Outside the border
       y += 10; // Reduced space after footer border
