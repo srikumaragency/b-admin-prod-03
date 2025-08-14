@@ -285,14 +285,17 @@ productSchema.pre('save', function(next) {
   next();
 });
 
+// Helper function for consistent rounding to 2 decimal places
+const round2 = (num) => parseFloat(Number(num).toFixed(2));
+
 // Static method to calculate pricing and inventory
 productSchema.statics.calculatePricing = function(basePrice, profitMarginPercentage = 70, discountPercentage = 80) {
-  const profitMarginPrice = basePrice + (basePrice * (profitMarginPercentage / 100));
-  const calculatedOriginalPrice = profitMarginPrice / (1 - (discountPercentage / 100));
+  const profitMarginPrice = round2(basePrice + (basePrice * (profitMarginPercentage / 100)));
+  const calculatedOriginalPrice = round2(profitMarginPrice / (1 - (discountPercentage / 100)));
   const offerPrice = profitMarginPrice;
   
   return {
-    basePrice,
+    basePrice: round2(basePrice),
     profitMarginPercentage,
     profitMarginPrice,
     discountPercentage,
@@ -321,9 +324,9 @@ productSchema.methods.updatePricing = function(newBasePrice, newProfitMarginPerc
   this.profitMarginPercentage = newProfitMarginPercentage || this.profitMarginPercentage;
   this.discountPercentage = newDiscountPercentage || this.discountPercentage;
   
-  // Recalculate all prices
-  this.profitMarginPrice = this.basePrice + (this.basePrice * (this.profitMarginPercentage / 100));
-  this.calculatedOriginalPrice = this.profitMarginPrice / (1 - (this.discountPercentage / 100));
+  // Recalculate all prices with consistent rounding
+  this.profitMarginPrice = round2(this.basePrice + (this.basePrice * (this.profitMarginPercentage / 100)));
+  this.calculatedOriginalPrice = round2(this.profitMarginPrice / (1 - (this.discountPercentage / 100)));
   this.offerPrice = this.profitMarginPrice;
   this.price = this.calculatedOriginalPrice; // Legacy field
   
