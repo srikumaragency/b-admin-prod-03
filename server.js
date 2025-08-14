@@ -27,7 +27,6 @@ const app = express();
 const allowedOrigins = [
   'https://admin.sivakaasi.com',
   'https://b-admin-prod-03.onrender.com',
-  'https://admin.sivakaasi.com',
   'https://www.admin.sivakaasi.com',
   'http://localhost:3000',
   'http://localhost:5173'
